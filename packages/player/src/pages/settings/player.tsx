@@ -79,6 +79,11 @@ import {
 	showStatJSFrameAtom,
 	updateInfoAtom,
 	enableWsLyricsInSmtcModeAtom,
+	metadataStripperOptionsAtom,
+	syllableSmoothingOptionsAtom,
+	agentRecognizerOptionsAtom,
+	applyAutoSplittingAtom,
+	chineseConversionModeAtom,
 } from "../../states/appAtoms.ts";
 import {
 	smtcSessionsAtom,
@@ -1367,6 +1372,161 @@ const SmtcSettings = () => {
 	);
 };
 
+const LyricProcessingSettings = () => {
+	const { t } = useTranslation();
+	const [metadataOptions, setMetadataOptions] = useAtom(
+		metadataStripperOptionsAtom,
+	);
+	const [smoothingOptions, setSmoothingOptions] = useAtom(
+		syllableSmoothingOptionsAtom,
+	);
+	const [agentOptions, setAgentOptions] = useAtom(agentRecognizerOptionsAtom);
+	const [conversionMode, setConversionMode] = useAtom(
+		chineseConversionModeAtom,
+	);
+
+	const conversionMenu = useMemo(
+		() => [
+			{ label: t("common.off", "关闭"), value: "Off" },
+			{ label: t("page.settings.smtc.textConversion.s2t"), value: "s2t" },
+			{ label: t("page.settings.smtc.textConversion.t2s"), value: "t2s" },
+			{ label: t("page.settings.smtc.textConversion.s2tw"), value: "s2tw" },
+			{ label: t("page.settings.smtc.textConversion.tw2s"), value: "tw2s" },
+			{ label: t("page.settings.smtc.textConversion.s2hk"), value: "s2hk" },
+			{ label: t("page.settings.smtc.textConversion.hk2s"), value: "hk2s" },
+		],
+		[t],
+	);
+
+	return (
+		<>
+			<SubTitle>
+				{t("page.settings.lyricProcessing.subtitle", "WS 歌词处理选项")}
+			</SubTitle>
+
+			<Text as="div" weight="medium" mb="1">
+				{t(
+					"page.settings.lyricProcessing.agentRecognizer.title",
+					"目前仅在 SMTC 监听模式下的 WS 歌词有效，而且非常不稳定。建议修改设置后重新启动应用以生效。",
+				)}
+			</Text>
+
+			<SettingEntry
+				label={t(
+					"page.settings.lyricProcessing.chineseConversion.label",
+					"歌词简繁转换",
+				)}
+				description={t(
+					"page.settings.lyricProcessing.chineseConversion.description",
+					"使用 OpenCC 对歌词文本进行简繁转换。",
+				)}
+			>
+				<Select.Root value={conversionMode} onValueChange={setConversionMode}>
+					<Select.Trigger />
+					<Select.Content>
+						{conversionMenu.map((item) => (
+							<Select.Item key={item.value} value={item.value}>
+								{item.label}
+							</Select.Item>
+						))}
+					</Select.Content>
+				</Select.Root>
+			</SettingEntry>
+
+			<SwitchSettings
+				label={t(
+					"page.settings.lyricProcessing.autoSplitting.label",
+					"启用自动分词",
+				)}
+				description={t(
+					"page.settings.lyricProcessing.autoSplitting.description",
+					"模仿 Apple Music 的自动分词。",
+				)}
+				configAtom={applyAutoSplittingAtom}
+			/>
+
+			<Box height="1em" />
+
+			<SwitchSettings
+				label={t(
+					"page.settings.lyricProcessing.agentRecognizer.enable",
+					"启用对唱识别",
+				)}
+				description={t(
+					"page.settings.lyricProcessing.agentRecognizer.description",
+					"识别并移除歌词中可能的演唱者标记，例如 男: ，女: 等。",
+				)}
+				configAtom={atom(agentOptions.enabled, (_, set, val) =>
+					setAgentOptions((p) => ({ ...p, enabled: val })),
+				)}
+			/>
+
+			<Box height="1em" />
+
+			<SwitchSettings
+				label={t(
+					"page.settings.lyricProcessing.metadataStripper.enable",
+					"启用元数据清理功能",
+				)}
+				description={t(
+					"page.settings.lyricProcessing.metadataStripper.description",
+					"自动移除歌词文件开头或结尾常见的元数据行。",
+				)}
+				configAtom={atom(metadataOptions.enabled, (_, set, val) =>
+					setMetadataOptions((p) => ({ ...p, enabled: val })),
+				)}
+			/>
+
+			<Box height="1em" />
+
+			<SwitchSettings
+				label={t(
+					"page.settings.lyricProcessing.smoothing.enable",
+					"启用歌词平滑",
+				)}
+				description={t(
+					"page.settings.lyricProcessing.smoothing.description",
+					"模仿 Apple Music 合并 CJK 字符再自动分词以平滑音节的功能，但更加平滑。",
+				)}
+				configAtom={atom(smoothingOptions.enabled, (_, set, val) =>
+					setSmoothingOptions((p) => ({ ...p, enabled: val })),
+				)}
+			/>
+			<NumberSettings
+				label={t("page.settings.lyricProcessing.smoothing.factor", "平滑因子")}
+				description={t(
+					"page.settings.lyricProcessing.smoothing.factor.description",
+					"控制平滑的强度。数值越高，相邻音节之间的时间戳调整幅度越大，效果越平滑。值的范围为 0~0.5。",
+				)}
+				type="number"
+				min={0}
+				max={0.5}
+				step={0.01}
+				configAtom={atom(smoothingOptions.factor, (_, set, val) =>
+					setSmoothingOptions((p) => ({ ...p, factor: val })),
+				)}
+			/>
+			<NumberSettings
+				label={t(
+					"page.settings.lyricProcessing.smoothing.iterations",
+					"迭代次数",
+				)}
+				description={t(
+					"page.settings.lyricProcessing.smoothing.iterations.description",
+					"平滑算法应用的次数。增加迭代次数可使音节更加平滑，但可能导致时间戳过度偏移。",
+				)}
+				type="number"
+				min={1}
+				max={20}
+				step={1}
+				configAtom={atom(smoothingOptions.smoothing_iterations, (_, set, val) =>
+					setSmoothingOptions((p) => ({ ...p, smoothing_iterations: val })),
+				)}
+			/>
+		</>
+	);
+};
+
 export const PlayerSettingsTab: FC<{ category: string }> = ({ category }) => {
 	switch (category) {
 		case "general":
@@ -1385,6 +1545,8 @@ export const PlayerSettingsTab: FC<{ category: string }> = ({ category }) => {
 			return <AboutSettings />;
 		case "smtc":
 			return <SmtcSettings />;
+		case "lyricProcessing":
+			return <LyricProcessingSettings />;
 		default:
 			return null;
 	}

@@ -1,5 +1,5 @@
 import { atom } from "jotai";
-import { atomWithStorage } from 'jotai/utils';
+import { atomWithStorage, createJSONStorage } from 'jotai/utils';
 import type { Update } from "@tauri-apps/plugin-updater";
 
 // ==================================================================
@@ -159,3 +159,52 @@ export const updateInfoAtom = atom<Update | false>(false);
  * 控制是否启用自动检查更新。
  */
 export const autoUpdateAtom = atomWithStorage("amll-player.autoUpdate", true);
+
+
+// ==================================================================
+//                    Rust 后端 TTML 解析器的选项
+// ==================================================================
+
+const storage = createJSONStorage(() => localStorage);
+
+/**
+ * 元数据清理选项
+ */
+export const metadataStripperOptionsAtom = atomWithStorage('v1-metadataStripperOptions', {
+	enabled: true,
+	keywords: null,
+	enable_regex_stripping: true,
+	regexPatterns: null,
+	keyword_case_sensitive: false,
+	regex_case_sensitive: false,
+});
+
+/**
+ * 歌词平滑选项
+ */
+export const syllableSmoothingOptionsAtom = atomWithStorage('v1-smoothingOptions', {
+	enabled: true,
+	factor: 0.15,
+	duration_threshold_ms: 50,
+	gap_threshold_ms: 100,
+	smoothing_iterations: 5,
+});
+
+/**
+ * 对唱识别选项
+ */
+export const agentRecognizerOptionsAtom = atomWithStorage('v1-agentRecognizerOptions', {
+	enabled: true,
+	inheritAgent: true,
+	removeMarkerLines: true,
+});
+
+/**
+ * 自动分词选项
+ */
+export const applyAutoSplittingAtom = atomWithStorage('v1-applyAutoSplitting', false);
+
+/**
+ * 歌词简繁转换选项
+ */
+export const chineseConversionModeAtom = atomWithStorage<string>('v1-chineseConversionMode', 'Off');

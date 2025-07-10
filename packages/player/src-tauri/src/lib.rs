@@ -19,6 +19,7 @@ use tracing::*;
 mod player;
 mod screen_capture;
 mod server;
+mod ttml_processor;
 
 #[cfg(target_os = "windows")]
 mod external_media_controller;
@@ -356,6 +357,7 @@ pub fn run() {
             #[cfg(target_os = "windows")]
             external_media_controller::request_smtc_update,
             reset_window_theme,
+            ttml_processor::processor::parse_ttml_for_amll_player,
         ])
         .setup(|app| {
             info!("正在初始化音频输出流...");
