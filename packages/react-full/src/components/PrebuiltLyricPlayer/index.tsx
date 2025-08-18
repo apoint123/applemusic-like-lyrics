@@ -8,10 +8,10 @@ import {
 	LyricPlayer,
 	type LyricPlayerRef,
 } from "@applemusic-like-lyrics/react";
-import { useAtom, useAtomValue, useSetAtom } from "jotai";
+import structuredClone from "@ungap/structured-clone";
 import classNames from "classnames";
 import { AnimatePresence, LayoutGroup } from "framer-motion";
-import structuredClone from "@ungap/structured-clone";
+import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import {
 	type FC,
 	type HTMLProps,
@@ -21,9 +21,8 @@ import {
 	useRef,
 	useState,
 } from "react";
-
-import { toDuration } from "../../utils";
 import { AutoLyricLayout } from "../../layout/auto";
+import { toDuration } from "../../utils";
 import { AudioFFTVisualizer } from "../AudioFFTVisualizer";
 import { AudioQualityTag } from "../AudioQualityTag";
 import { BouncingSlider } from "../BouncingSlider";
@@ -47,73 +46,73 @@ import ShuffleIcon from "./shuffle.svg?react";
 import ShuffleActiveIcon from "./shuffle-active.svg?react";
 
 import "./icon-animations.css";
-import styles from "./index.module.css";
-import { useThrottle } from "../../hook/useThrottle";
 import React from "react";
+import { useThrottle } from "../../hook/useThrottle";
 import {
-	onRequestOpenMenuAtom,
-	onRequestPrevSongAtom,
-	onRequestNextSongAtom,
-	onPlayOrResumeAtom,
+	onChangeVolumeAtom,
 	onClickAudioQualityTagAtom,
-	onSeekPositionAtom,
+	onClickControlThumbAtom,
 	onLyricLineClickAtom,
 	onLyricLineContextMenuAtom,
-	onChangeVolumeAtom,
-	onClickControlThumbAtom,
+	onPlayOrResumeAtom,
+	onRequestNextSongAtom,
+	onRequestOpenMenuAtom,
+	onRequestPrevSongAtom,
+	onSeekPositionAtom,
 } from "../../states/callbacks";
 import {
-	showMusicNameAtom,
-	showMusicArtistsAtom,
-	showMusicAlbumAtom,
-	lyricFontFamilyAtom,
-	lyricFontWeightAtom,
-	lyricLetterSpacingAtom,
-	showRemainingTimeAtom,
-	isLyricPageOpenedAtom,
-	lyricPlayerImplementationAtom,
+	cssBackgroundPropertyAtom,
 	enableLyricLineBlurEffectAtom,
 	enableLyricLineScaleEffectAtom,
 	enableLyricLineSpringAnimationAtom,
-	lyricWordFadeWidthAtom,
-	enableLyricTranslationLineAtom,
 	enableLyricRomanLineAtom,
 	enableLyricSwapTransRomanLineAtom,
-	showVolumeControlAtom,
-	playerControlsTypeAtom,
-	PlayerControlsType,
+	enableLyricTranslationLineAtom,
 	hideLyricViewAtom,
+	isLyricPageOpenedAtom,
 	lyricBackgroundFPSAtom,
-	verticalCoverLayoutAtom,
-	lyricBackgroundStaticModeAtom,
-	lyricBackgroundRenderScaleAtom,
 	lyricBackgroundRendererAtom,
+	lyricBackgroundRenderScaleAtom,
+	lyricBackgroundStaticModeAtom,
+	lyricFontFamilyAtom,
+	lyricFontWeightAtom,
+	lyricLetterSpacingAtom,
+	lyricPlayerImplementationAtom,
+	lyricWordFadeWidthAtom,
+	PlayerControlsType,
+	playerControlsTypeAtom,
 	showBottomControlAtom,
+	showMusicAlbumAtom,
+	showMusicArtistsAtom,
+	showMusicNameAtom,
+	showRemainingTimeAtom,
+	showVolumeControlAtom,
 	VerticalCoverLayout,
+	verticalCoverLayoutAtom,
 } from "../../states/configAtoms";
 import {
-	musicNameAtom,
-	musicArtistsAtom,
-	musicAlbumNameAtom,
-	musicPlayingAtom,
-	musicDurationAtom,
-	musicQualityTagAtom,
-	musicLyricLinesAtom,
-	musicVolumeAtom,
+	correctedMusicPlayingPositionAtom,
+	cycleRepeatModeActionAtom,
+	isShuffleActiveAtom,
+	RepeatMode,
+	repeatModeAtom,
+	toggleShuffleActionAtom,
+} from "../../states/controlsAtoms";
+import {
 	fftDataAtom,
+	lowFreqVolumeAtom,
+	musicAlbumNameAtom,
+	musicArtistsAtom,
 	musicCoverAtom,
 	musicCoverIsVideoAtom,
-	lowFreqVolumeAtom,
+	musicDurationAtom,
+	musicLyricLinesAtom,
+	musicNameAtom,
+	musicPlayingAtom,
+	musicQualityTagAtom,
+	musicVolumeAtom,
 } from "../../states/dataAtoms";
-
-import {
-	isShuffleActiveAtom,
-	repeatModeAtom,
-	RepeatMode,
-	toggleShuffleActionAtom,
-	cycleRepeatModeActionAtom,
-	correctedMusicPlayingPositionAtom,
-} from "../../states/controlsAtoms";
+import styles from "./index.module.css";
 
 const PrebuiltMusicInfo: FC<{
 	className?: string;
@@ -493,6 +492,8 @@ export const PrebuiltLyricPlayer: FC<HTMLProps<HTMLDivElement>> = ({
 	const [isHoveringTitlebar, setIsHoveringTitlebar] = useState(false);
 	const [isGracePeriodOver, setIsGracePeriodOver] = useState(false);
 
+	const cssBackgroundProperty = useAtomValue(cssBackgroundPropertyAtom);
+
 	useLayoutEffect(() => {
 		// 如果是水平布局，则让歌词对齐到封面的中心
 		if (!isVertical && coverElRef.current && layoutRef.current) {
@@ -593,7 +594,8 @@ export const PrebuiltLyricPlayer: FC<HTMLProps<HTMLDivElement>> = ({
 					/>
 				}
 				backgroundSlot={
-					typeof backgroundRenderer.renderer === "string" ? (
+					typeof backgroundRenderer.renderer === "string" &&
+					backgroundRenderer.renderer === "css-bg" ? (
 						<div
 							style={{
 								zIndex: -1,
@@ -602,7 +604,7 @@ export const PrebuiltLyricPlayer: FC<HTMLProps<HTMLDivElement>> = ({
 								minWidth: "0",
 								minHeight: "0",
 								overflow: "hidden",
-								background: backgroundRenderer.renderer,
+								background: cssBackgroundProperty,
 							}}
 						/>
 					) : (
@@ -612,7 +614,7 @@ export const PrebuiltLyricPlayer: FC<HTMLProps<HTMLDivElement>> = ({
 							lowFreqVolume={lowFreqVolume}
 							renderScale={lyricBackgroundRenderScale}
 							fps={lyricBackgroundFPS}
-							renderer={backgroundRenderer.renderer}
+							renderer={(backgroundRenderer as any).renderer}
 							staticMode={lyricBackgroundStaticMode || !isLyricPageOpened}
 							style={{
 								zIndex: -1,

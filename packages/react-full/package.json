@@ -54,8 +54,8 @@
 	},
 	"peerDependencies": {
 		"jotai": "^2.0.0",
-		"react": "^19.0.0",
-		"react-dom": "^19.0.0"
+		"react": "^17.0.0 || ^18.0.0 || ^19.0.0",
+		"react-dom": "^17.0.0 || ^18.0.0 || ^19.0.0"
 	},
 	"devDependencies": {
 		"@applemusic-like-lyrics/lyric": "workspace:^",
@@ -67,8 +67,8 @@
 		"@pixi/filter-color-matrix": "^7.4.3",
 		"@pixi/sprite": "^7.4.3",
 		"@radix-ui/themes": "^3.2.1",
-		"@types/react": "^19.0.12",
-		"@types/react-dom": "^19.0.4",
+		"@types/react": "^18",
+		"@types/react-dom": "^18",
 		"@types/ungap__structured-clone": "^1.2.0",
 		"@vitejs/plugin-react": "^4.3.4",
 		"babel-plugin-react-compiler": "19.0.0-beta-aeaed83-20250323",

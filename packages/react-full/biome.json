@@ -1,0 +1,25 @@
+{
+    "$schema": "https://biomejs.dev/schemas/2.1.1/schema.json",
+    "formatter": {
+        "enabled": true
+    },
+    "linter": {
+        "enabled": true
+    },
+    "assist": {
+        "enabled": true
+    },
+    "files": {
+        "includes": [
+            "**",
+            "!**/node_modules",
+            "!**/public",
+            "!**/.wrangler",
+            "!**/dist",
+            "!**/icons",
+            "!**/patches",
+            "!**/*.css",
+            "!**/*.scss"
+        ]
+    }
+}
