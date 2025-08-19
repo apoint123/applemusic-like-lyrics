@@ -1,9 +1,19 @@
 {
-	"include": ["./src/**/*.ts", "./src/**/*.tsx"],
-	"exclude": ["./src/test.tsx", "./src/test-prebuilt.tsx"],
+	"include": [
+		"./src/**/*.ts",
+		"./src/**/*.tsx"
+	],
+	"exclude": [
+		"./src/test.tsx",
+		"./src/test-prebuilt.tsx"
+	],
 	"compilerOptions": {
 		"target": "ESNext",
-		"lib": ["ESNext", "DOM", "DOM.Iterable"],
+		"lib": [
+			"ESNext",
+			"DOM",
+			"DOM.Iterable"
+		],
 		"module": "ESNext",
 		"jsx": "react-jsx",
 		"types": [],
@@ -15,6 +25,9 @@
 		"allowSyntheticDefaultImports": true,
 		"allowJs": false,
 		"skipLibCheck": true,
-		"noEmit": true
+		"noEmit": true,
+		"declaration": true,
+		"declarationMap": true,
+		"emitDeclarationOnly": false
 	}
 }

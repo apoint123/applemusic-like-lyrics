@@ -7,7 +7,15 @@
 			"packages/**/*.ts",
 			"packages/**/*.jsx",
 			"packages/**/*.tsx",
-			"packages/**/*.css"
+			"packages/**/*.css",
+			"!**/node_modules",
+			"!**/public",
+			"!**/.wrangler",
+			"!**/dist",
+			"!**/icons",
+			"!**/patches",
+			"!**/*.css",
+			"!**/*.scss"
 		]
 	},
 	"formatter": {
