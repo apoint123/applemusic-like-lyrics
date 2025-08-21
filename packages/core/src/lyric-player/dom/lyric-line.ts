@@ -1,6 +1,10 @@
 import bezier from "bezier-easing";
-import type { DomLyricPlayer } from ".";
-import type { LyricLine, LyricWord } from "../../interfaces.ts";
+import type {
+	LyricLine,
+	LyricLineContent,
+	LyricWord,
+	RubyGroup,
+} from "../../interfaces.ts";
 import styles from "../../styles/lyric-player.module.css";
 import { chunkAndSplitLyricWords } from "../../utils/lyric-split-words.ts";
 import {
@@ -9,6 +13,7 @@ import {
 	scaleMatrix4,
 } from "../../utils/matrix.ts";
 import { LyricLineBase } from "../base.ts";
+import type { DomLyricPlayer } from ".";
 
 interface RealWord extends LyricWord {
 	mainElement: HTMLSpanElement;
@@ -19,6 +24,16 @@ interface RealWord extends LyricWord {
 	height: number;
 	padding: number;
 	shouldEmphasize: boolean;
+}
+
+interface RealRubyGroup {
+	element: HTMLDivElement;
+	startTime: number;
+	endTime: number;
+	width: number;
+	height: number;
+	maskAnimation: Animation | null;
+	elementAnimations: Animation[];
 }
 
 const ANIMATION_FRAME_QUANTITY = 32;
@@ -84,9 +99,14 @@ type MouseEventListener = (
 	ev: RawLyricLineMouseEvent,
 ) => void;
 
+function isRubyGroup(item: LyricLineContent): item is RubyGroup {
+	return (item as RubyGroup).ruby !== undefined;
+}
+
 export class LyricLineEl extends LyricLineBase {
 	private element: HTMLElement = document.createElement("div");
 	private splittedWords: RealWord[] = [];
+	private rubyGroups: RealRubyGroup[] = [];
 	// 标记是否已经构建了行内的实际 DOM（单词与动画等）
 	private built = false;
 
@@ -209,8 +229,25 @@ export class LyricLineEl extends LyricLineBase {
 				a.play();
 			}
 		}
+		for (const group of this.rubyGroups) {
+			for (const a of group.elementAnimations) {
+				a.currentTime = 0;
+				a.playbackRate = 1;
+				a.play();
+			}
+			const a = group.maskAnimation;
+			if (a) {
+				a.currentTime = Math.min(
+					this.totalDuration,
+					Math.max(0, maskAnimationTime - this.lyricLine.startTime),
+				);
+				a.playbackRate = 1;
+				a.play();
+			}
+		}
 		main.classList.add(styles.active);
 	}
+
 	disable() {
 		this.isEnabled = false;
 		this.element.classList.remove(styles.active);
@@ -250,6 +287,15 @@ export class LyricLineEl extends LyricLineBase {
 					a.play();
 				}
 			}
+			for (const group of this.rubyGroups) {
+				group.maskAnimation?.play();
+				for (const a of group.elementAnimations) {
+					a.play();
+				}
+			}
+		}
+		for (const group of this.rubyGroups) {
+			group.maskAnimation?.play();
 		}
 	}
 	async pause() {
@@ -262,11 +308,27 @@ export class LyricLineEl extends LyricLineBase {
 				a.pause();
 			}
 		}
+		for (const group of this.rubyGroups) {
+			group.maskAnimation?.pause();
+			for (const a of group.elementAnimations) {
+				a.pause();
+			}
+		}
 	}
+
 	setMaskAnimationState(maskAnimationTime = 0) {
 		const t = maskAnimationTime - this.lyricLine.startTime;
 		for (const word of this.splittedWords) {
 			for (const a of word.maskAnimations) {
+				a.currentTime = Math.min(this.totalDuration, Math.max(0, t));
+				a.playbackRate = 1;
+				if (t >= 0 && t < this.totalDuration) a.play();
+				else a.pause();
+			}
+		}
+		for (const group of this.rubyGroups) {
+			const a = group.maskAnimation;
+			if (a) {
 				a.currentTime = Math.min(this.totalDuration, Math.max(0, t));
 				a.playbackRate = 1;
 				if (t >= 0 && t < this.totalDuration) a.play();
@@ -335,22 +397,91 @@ export class LyricLineEl extends LyricLineBase {
 			return;
 		}
 
-		const chunkedWords = chunkAndSplitLyricWords(this.lyricLine.words);
 		main.innerHTML = "";
-		for (const chunk of chunkedWords) {
-			if (Array.isArray(chunk)) {
-				// 多个没有空格的单词组合在一起
-				if (chunk.length === 0) continue;
-				this.buildChunkGroup(chunk, main);
-			} else if (chunk.word.trim().length === 0) {
-				// 纯空格
-				main.appendChild(document.createTextNode(" "));
+		const content = this.lyricLine.content ?? this.lyricLine.words;
+		if (!content) return;
+
+		let wordBuffer: LyricWord[] = [];
+
+		const processWordBuffer = () => {
+			if (wordBuffer.length === 0) return;
+			const chunks = chunkAndSplitLyricWords(wordBuffer);
+			for (const chunk of chunks) {
+				if (Array.isArray(chunk)) {
+					// 多个没有空格的单词组合在一起
+					if (chunk.length > 0) {
+						this.buildChunkGroup(chunk, main);
+					}
+				} else if (chunk.word.trim().length === 0) {
+					// 纯空格
+					main.appendChild(document.createTextNode(" "));
+				} else {
+					// 单个单词
+					this.buildSingleWord(chunk, main);
+				}
+			}
+
+			wordBuffer = [];
+		};
+
+		for (const item of content) {
+			if (isRubyGroup(item)) {
+				processWordBuffer();
+
+				const wrapperEl = document.createElement("span");
+				wrapperEl.className = styles.rubyGroupWrapper;
+
+				for (const word of item.words) {
+					// 直接调用 buildSingleWord，因为 RubyGroup 内部的单词不应该再被 chunk
+					this.buildSingleWord(word, wrapperEl);
+				}
+
+				const rubyTextEl = this.createRubyTextEl(item);
+				wrapperEl.appendChild(rubyTextEl);
+				main.appendChild(wrapperEl);
 			} else {
-				// 单个单词
-				this.buildSingleWord(chunk, main);
+				wordBuffer.push(item);
 			}
 		}
+
+		processWordBuffer();
+
 		this.setSubLinesText(trans, roman);
+	}
+
+	private createRubyTextEl(item: RubyGroup): HTMLDivElement {
+		const rubyTextEl = document.createElement("div");
+		rubyTextEl.className = styles.rubyText;
+		rubyTextEl.innerText = item.ruby;
+
+		const startTime = item.words[0]?.startTime ?? 0;
+		const endTime = item.words[item.words.length - 1]?.endTime ?? 0;
+
+		let elementAnimations: Animation[] = [];
+		const shouldEmphasize = item.words.some((word) =>
+			LyricLineBase.shouldEmphasize(word),
+		);
+		if (shouldEmphasize) {
+			const duration = endTime - startTime;
+			const delay = startTime - this.lyricLine.startTime;
+			elementAnimations = this.initRubyEmphasizeAnimation(
+				rubyTextEl,
+				duration,
+				delay,
+			);
+		}
+
+		this.rubyGroups.push({
+			element: rubyTextEl,
+			startTime,
+			endTime,
+			width: 0,
+			height: 0,
+			maskAnimation: null,
+			elementAnimations,
+		});
+
+		return rubyTextEl;
 	}
 
 	/** 设置翻译与音译行文本 */
@@ -464,9 +595,10 @@ export class LyricLineEl extends LyricLineBase {
 	}
 
 	/** 渲染单个词（含强调与音译处理） */
-	private buildSingleWord(chunk: LyricWord, main: HTMLDivElement) {
+	private buildSingleWord(chunk: LyricWord, parentEl: HTMLElement) {
 		const emp = LyricLineBase.shouldEmphasize(chunk);
 		const mainWordEl = document.createElement("span");
+		mainWordEl.className = styles.lyricWord;
 		const realWord: RealWord = {
 			...chunk,
 			mainElement: mainWordEl,
@@ -520,11 +652,11 @@ export class LyricLineEl extends LyricLineBase {
 
 		// 前后空格处理
 		if (chunk.word.trimStart() !== chunk.word) {
-			main.appendChild(document.createTextNode(" "));
+			parentEl.appendChild(document.createTextNode(" "));
 		}
-		main.appendChild(mainWordEl);
+		parentEl.appendChild(mainWordEl);
 		if (chunk.word.trimEnd() !== chunk.word) {
-			main.appendChild(document.createTextNode(" "));
+			parentEl.appendChild(document.createTextNode(" "));
 		}
 		this.splittedWords.push(realWord);
 	}
@@ -556,6 +688,48 @@ export class LyricLineEl extends LyricLineBase {
 		a.pause();
 		return a;
 	}
+
+	private initRubyEmphasizeAnimation(
+		rubyEl: HTMLElement,
+		duration: number,
+		delay: number,
+	): Animation[] {
+		const animateDu = Number.isFinite(duration) ? duration : 0;
+		const wordDe = Math.max(0, delay);
+		const empEasing = makeEmpEasing(EMP_EASING_MID);
+
+		const frames: Keyframe[] = new Array(ANIMATION_FRAME_QUANTITY)
+			.fill(0)
+			.map((_, j) => {
+				const x = (j + 1) / ANIMATION_FRAME_QUANTITY;
+				const scaleFactor = empEasing(x);
+				const floatFactor = Math.sin(x * Math.PI);
+
+				const mat = scaleMatrix4(createMatrix4(), 1 + scaleFactor * 0.05);
+				const animatedFloatY = -floatFactor * 0.1;
+
+				return {
+					offset: x,
+					transform: `translateX(-50%) translateY(-100%) ${matrix4ToCSS(
+						mat,
+						4,
+					)} translateY(${animatedFloatY}em)`,
+				};
+			});
+
+		const animation = rubyEl.animate(frames, {
+			duration: animateDu,
+			delay: wordDe,
+			id: "emphasize-ruby",
+			iterations: 1,
+			composite: "replace",
+			fill: "both",
+		});
+		animation.pause();
+
+		return [animation];
+	}
+
 	// 按照原 Apple Music 参考，强调效果只应用缩放、轻微左右位移和辉光效果，原主要的悬浮位移效果不变
 	// 为了避免产生锯齿抖动感，使用 matrix3d 来实现缩放和位移
 	private initEmphasizeAnimation(
@@ -686,6 +860,13 @@ export class LyricLineEl extends LyricLineBase {
 				word.width = 0;
 				word.height = 0;
 				word.padding = 0;
+			}
+		}
+		for (const group of this.rubyGroups) {
+			const el = group.element;
+			if (el) {
+				group.width = el.clientWidth;
+				group.height = el.clientHeight;
 			}
 		}
 		if (this.lyricPlayer.supportMaskImage) {
@@ -850,7 +1031,65 @@ export class LyricLineEl extends LyricLineBase {
 				}
 			}
 		});
+
+		for (const group of this.rubyGroups) {
+			const el = group.element;
+			if (!el) continue;
+
+			const fadeWidth = group.height * this.lyricPlayer.getWordFadeWidth();
+			const [maskImage, totalAspect] = generateFadeGradient(
+				fadeWidth / group.width,
+			);
+			const totalAspectStr = `${totalAspect * 100}% 100%`;
+			if (this.lyricPlayer.supportMaskImage) {
+				el.style.maskImage = maskImage;
+				el.style.maskRepeat = "no-repeat";
+				el.style.maskOrigin = "left";
+				el.style.maskSize = totalAspectStr;
+			} else {
+				el.style.webkitMaskImage = maskImage;
+				el.style.webkitMaskRepeat = "no-repeat";
+				el.style.webkitMaskOrigin = "left";
+				el.style.webkitMaskSize = totalAspectStr;
+			}
+
+			group.maskAnimation?.cancel();
+
+			const duration = group.endTime - group.startTime;
+			const delay = group.startTime - this.lyricLine.startTime;
+
+			const startOffset = Math.max(0, delay / totalFadeDuration);
+			const endOffset = Math.min(1, (delay + duration) / totalFadeDuration);
+
+			const startPos = `${-(group.width + fadeWidth)}px 0px`;
+			const endPos = `0px 0px`;
+
+			const frames: Keyframe[] = [
+				{ offset: 0, maskPosition: startPos },
+				{ offset: startOffset, maskPosition: startPos, easing: "linear" },
+				{ offset: endOffset, maskPosition: endPos, easing: "linear" },
+				{ offset: 1, maskPosition: endPos },
+			];
+
+			try {
+				const ani = el.animate(frames, {
+					duration: totalFadeDuration || 1,
+					id: `fade-ruby-${group.element.innerText}`,
+					fill: "both",
+				});
+				ani.pause();
+				group.maskAnimation = ani;
+			} catch (err) {
+				console.warn(
+					"应用振假名渐变动画发生错误",
+					frames,
+					totalFadeDuration,
+					err,
+				);
+			}
+		}
 	}
+
 	getElement() {
 		return this.element;
 	}
@@ -995,7 +1234,16 @@ export class LyricLineEl extends LyricLineBase {
 				realWord.mainElement.parentNode.removeChild(realWord.mainElement);
 			}
 		}
+		for (const group of this.rubyGroups) {
+			group.maskAnimation?.cancel();
+			for (const a of group.elementAnimations) {
+				a.cancel();
+			}
+			group.element.remove();
+		}
+
 		this.splittedWords = [];
+		this.rubyGroups = [];
 		const main = this.element.children[0] as HTMLDivElement;
 		const trans = this.element.children[1] as HTMLDivElement;
 		const roman = this.element.children[2] as HTMLDivElement;
@@ -1003,6 +1251,7 @@ export class LyricLineEl extends LyricLineBase {
 		if (trans) trans.innerHTML = "";
 		if (roman) roman.innerHTML = "";
 	}
+
 	override dispose(): void {
 		this.disposeElements();
 		this.lyricPlayer.resizeObserver.unobserve(this.element);

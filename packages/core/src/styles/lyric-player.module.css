@@ -10,7 +10,6 @@
 	width: var(--amll-lp-width, 100%);
 	min-width: var(--amll-lp-width, 100%);
 	max-width: var(--amll-lp-width, 100%);
-	width: 100%;
 	height: fit-content;
 	padding: 0.5em 1em;
 	contain: content;
@@ -47,6 +46,10 @@
 	}
 }
 
+.lyricLine:has(.rubyGroupWrapper) {
+	padding-top: 1em;
+}
+
 .lyricBgLine {
 	opacity: 0.0001;
 	font-size: max(calc(1em * var(--amll-lp-bg-line-scale, 0.7)), 10px);
@@ -57,7 +60,8 @@
 		background-color 0.25s,
 		box-shadow 0.25s;
 	/* 因为字体大小缩小了，故内边距要和主行字体大小统一，行边距计算公式为 100% / font-size 转 em 单位 */
-	padding: 1vh calc(var(--amll-lp-line-padding-x, 1em) / var(--amll-lp-bg-line-scale, 0.7));
+	padding: 1vh
+		calc(var(--amll-lp-line-padding-x, 1em) / var(--amll-lp-bg-line-scale, 0.7));
 
 	&.active {
 		transition:
@@ -72,6 +76,8 @@
 
 :global(.amll-lyric-player) {
 	&:hover .lyricLine {
+		/* biome-ignore lint/complexity/noImportantStyles: This is necessary to 
+			override inline filter styles applied by JavaScript. */
 		filter: unset !important;
 	}
 
@@ -85,7 +91,7 @@
 		}
 	}
 
-	&:not(:global(.playing))>.lyricBgLine {
+	&:not(:global(.playing)) > .lyricBgLine {
 		opacity: 0.4;
 	}
 }
@@ -103,14 +109,14 @@
 	& span {
 		display: inline-block;
 	}
-	
+
 	.romanWord {
 		font-size: 0.5em;
 		line-height: 1em;
 	}
 
-	&>span,
-	span.emphasizeWrapper {
+	& .lyricWord,
+	& .emphasizeWrapper {
 		white-space: pre-wrap;
 		display: inline-block;
 		padding: 1em;
@@ -123,13 +129,34 @@
 			margin: -1em;
 			backface-visibility: hidden;
 
-			&>span {
+			& > span {
 				padding: 1em;
 				margin: -1em;
 				will-change: transform;
 				backface-visibility: hidden;
 			}
 		}
+	}
+
+	& .rubyGroupWrapper {
+		position: relative;
+		display: inline-block;
+		vertical-align: bottom;
+	}
+
+	& .rubyText {
+		position: absolute;
+		left: 50%;
+		top: 0;
+		transform: translate(-50%, -100%);
+		margin-top: 0.1em;
+
+		font-size: 0.5em;
+		line-height: 1em;
+		white-space: nowrap;
+		user-select: none;
+
+		color: var(--amll-lp-color, white);
 	}
 }
 
@@ -140,7 +167,7 @@
 	opacity: 0.3;
 }
 
-.disableSpring>* {
+.disableSpring > * {
 	transition:
 		filter 0.25s,
 		transform 0.5s,
@@ -164,7 +191,7 @@
 		opacity: 1;
 	}
 
-	&>* {
+	& > * {
 		width: clamp(0.5em, 1vh, 3em);
 		height: clamp(0.5em, 1vh, 3em);
 		display: inline-block;
@@ -187,5 +214,7 @@
 }
 
 .tmpDisableTransition {
+	/* biome-ignore lint/complexity/noImportantStyles: This class's sole purpose is to 
+		forcefully and temporarily disable transitions. */
 	transition: none !important;
 }

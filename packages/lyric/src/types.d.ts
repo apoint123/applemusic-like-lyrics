@@ -102,9 +102,16 @@ export interface LyricWord {
 export interface LyricLine {
 	/**
 	 * 该行的所有单词
-	 * 如果是 LyRiC 等只能表达一行歌词的格式，这里就只会有一个单词
+	 * 如果是 LyRiC 等只能表达一行歌词的格式，这里就只会有一个单词且通常其始末时间和本结构的 `startTime` 和 `endTime` 相同
+	 * @deprecated
+	 * 请使用 `content` 属性来获取结构化的歌词内容。
+	 * 此属性为了向后兼容而保留，它提供了歌词内容的扁平化单词列表。
 	 */
 	words: LyricWord[];
+	/**
+	 * 歌词行的结构化内容。用于支持振假名。
+	 */
+	content?: LyricLineContent[];
 	/**
 	 * 该行的翻译
 	 */
@@ -136,6 +143,21 @@ export interface LyricLine {
 	 */
 	endTime: number;
 }
+
+/**
+ * 代表一组共享一个振假名注音的音节。
+ */
+export interface RubyGroup {
+	/** 构成基础文本的单词数组 */
+	words: LyricWord[];
+	/** 应用于整个音节组的振假名 */
+	ruby: string;
+}
+
+/**
+ * 一行歌词内容的组成部分，可以是一个独立的单词，也可以是一个振假名组。
+ */
+export type LyricLineContent = LyricWord | RubyGroup;
 
 /**
  * 解密十六进制字符串格式的 Qrc 歌词数据

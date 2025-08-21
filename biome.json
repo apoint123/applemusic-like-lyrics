@@ -13,9 +13,7 @@
 			"!**/.wrangler",
 			"!**/dist",
 			"!**/icons",
-			"!**/patches",
-			"!**/*.css",
-			"!**/*.scss"
+			"!**/patches"
 		]
 	},
 	"formatter": {
