@@ -431,11 +431,14 @@ export class LyricLineEl extends LyricLineBase {
 				const wrapperEl = document.createElement("span");
 				wrapperEl.className = styles.rubyGroupWrapper;
 
+				const baseTextEl = document.createElement("span");
+				baseTextEl.className = styles.rubyBaseText;
+
 				for (const word of item.words) {
-					// 直接调用 buildSingleWord，因为 RubyGroup 内部的单词不应该再被 chunk
-					this.buildSingleWord(word, wrapperEl);
+					this.buildSingleWord(word, baseTextEl);
 				}
 
+				wrapperEl.appendChild(baseTextEl);
 				const rubyTextEl = this.createRubyTextEl(item);
 				wrapperEl.appendChild(rubyTextEl);
 				main.appendChild(wrapperEl);

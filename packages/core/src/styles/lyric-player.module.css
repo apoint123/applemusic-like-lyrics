@@ -139,23 +139,22 @@
 	}
 
 	& .rubyGroupWrapper {
-		position: relative;
 		display: inline-block;
+		position: relative;
 		vertical-align: bottom;
+		margin-top: 0.5em;
+		padding-top: 0;
 	}
 
 	& .rubyText {
 		position: absolute;
 		left: 50%;
-		top: 0;
-		transform: translate(-50%, -100%);
-		margin-top: 0.1em;
-
+		bottom: 100%;
+		transform: translateX(-50%);
 		font-size: 0.5em;
 		line-height: 1em;
 		white-space: nowrap;
 		user-select: none;
-
 		color: var(--amll-lp-color, white);
 	}
 }
