@@ -46,10 +46,6 @@
 	}
 }
 
-.lyricLine:has(.rubyGroupWrapper) {
-	padding-top: 1em;
-}
-
 .lyricBgLine {
 	opacity: 0.0001;
 	font-size: max(calc(1em * var(--amll-lp-bg-line-scale, 0.7)), 10px);
@@ -102,61 +98,57 @@
 }
 
 .lyricMainLine {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: stretch;
+	justify-content: flex-start;
 	transition: opacity 0.3s 0.1s;
-	margin: -1em;
-	padding: 1em;
+	line-height: 1.5;
 
-	& span {
-		display: inline-block;
+	&.isDuet {
+		justify-content: flex-end;
 	}
 
-	.romanWord {
-		font-size: 0.5em;
-		line-height: 1em;
-	}
-
-	& .lyricWord,
-	& .emphasizeWrapper {
-		white-space: pre-wrap;
-		display: inline-block;
-		padding: 1em;
-		margin: -1em;
-		will-change: transform;
-
-		&.emphasize,
-		span.emphasize {
-			padding: 1em;
-			margin: -1em;
-			backface-visibility: hidden;
-
-			& > span {
-				padding: 1em;
-				margin: -1em;
-				will-change: transform;
-				backface-visibility: hidden;
-			}
+	&:has(.rubySlot:not(:empty)) {
+		& .rubySlot {
+			min-height: 1em;
 		}
 	}
-
-	& .rubyGroupWrapper {
-		display: inline-block;
-		position: relative;
-		vertical-align: bottom;
-		margin-top: 0.5em;
-		padding-top: 0;
+	&:has(.romanSlot:not(:empty)) {
+		& .romanSlot {
+			min-height: 1em;
+		}
 	}
+}
 
-	& .rubyText {
-		position: absolute;
-		left: 50%;
-		bottom: 100%;
-		transform: translateX(-50%);
-		font-size: 0.5em;
-		line-height: 1em;
-		white-space: nowrap;
-		user-select: none;
-		color: var(--amll-lp-color, white);
+.unifiedWord {
+	display: inline-flex;
+	flex-direction: column;
+	text-align: center;
+	white-space: pre;
+}
+
+.rubySlot,
+.mainSlot,
+.romanSlot {
+	display: flex;
+	justify-content: center;
+	align-items: center;
+	will-change: transform;
+}
+
+.mainSlot {
+	& > .emphasizeWrapper {
+		display: inline-flex;
 	}
+}
+
+.rubySlot,
+.romanSlot {
+	font-size: 0.5em;
+	line-height: 1;
+	color: var(--amll-lp-color, white);
+	user-select: none;
 }
 
 .lyricSubLine {

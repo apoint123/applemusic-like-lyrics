@@ -1,8 +1,6 @@
-import { atom } from "jotai";
-
 import type { LyricLineMouseEvent } from "@applemusic-like-lyrics/core";
-
 import type { LyricPlayerRef } from "@applemusic-like-lyrics/react";
+import { atom } from "jotai";
 
 /**
  * 定义一个通用的回调函数结构。
@@ -108,6 +106,6 @@ export const onClickRightFunctionButtonAtom = atom(c(() => {}));
 export const onToggleShuffleAtom = atom(c(() => {}));
 
 /**
- * 当用户请求切换（循环）重复播放模式时触发。
+ * 当用户请求切换重复播放模式时触发。
  */
 export const onCycleRepeatModeAtom = atom(c(() => {}));

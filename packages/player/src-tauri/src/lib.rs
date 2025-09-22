@@ -31,7 +31,7 @@ pub type AMLLWebSocketServerState<'r> = State<'r, AMLLWebSocketServerWrapper>;
 async fn ws_reopen_connection(
     addr: &str,
     ws: AMLLWebSocketServerState<'_>,
-    channel: Channel<ws_protocol::Body>,
+    channel: Channel<ws_protocol::v2::Payload>,
 ) -> Result<(), String> {
     ws.write().await.reopen(addr.to_string(), channel);
     Ok(())
@@ -51,11 +51,11 @@ async fn ws_get_connections(ws: AMLLWebSocketServerState<'_>) -> Result<Vec<Sock
 }
 
 #[tauri::command]
-async fn ws_boardcast_message(
+async fn ws_broadcast_payload(
     ws: AMLLWebSocketServerState<'_>,
-    data: ws_protocol::Body,
+    payload: ws_protocol::v2::Payload,
 ) -> Result<(), String> {
-    ws.write().await.boardcast_message(data).await;
+    ws.write().await.broadcast_payload(payload).await;
     Ok(())
 }
 
@@ -144,19 +144,19 @@ async fn read_local_music_metadata(
 
     let mut music_info: MusicInfo = audio_info.into();
 
-    if let Some(file_path_ref) = file_path.as_path() {
-        if music_info.lyric.is_empty() {
-            const LYRIC_FILE_EXTENSIONS: &[&str] = &["ttml", "lys", "yrc", "qrc", "eslrc", "lrc"];
-            for ext in LYRIC_FILE_EXTENSIONS {
-                let lyric_file_path = file_path_ref.with_extension(ext);
-                if lyric_file_path.exists() {
-                    if let Ok(lyric) = fs.read_to_string(&lyric_file_path) {
-                        music_info.lyric_format = ext.to_string();
-                        music_info.lyric = lyric;
-                        break;
-                    } else {
-                        warn!("歌词文件存在但读取失败: {}", lyric_file_path.display());
-                    }
+    if let Some(file_path_ref) = file_path.as_path()
+        && music_info.lyric.is_empty()
+    {
+        const LYRIC_FILE_EXTENSIONS: &[&str] = &["ttml", "lys", "yrc", "qrc", "eslrc", "lrc"];
+        for ext in LYRIC_FILE_EXTENSIONS {
+            let lyric_file_path = file_path_ref.with_extension(ext);
+            if lyric_file_path.exists() {
+                if let Ok(lyric) = fs.read_to_string(&lyric_file_path) {
+                    music_info.lyric_format = ext.to_string();
+                    music_info.lyric = lyric;
+                    break;
+                } else {
+                    warn!("歌词文件存在但读取失败: {}", lyric_file_path.display());
                 }
             }
         }
@@ -344,7 +344,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             ws_reopen_connection,
             ws_get_connections,
-            ws_boardcast_message,
+            ws_broadcast_payload,
             ws_close_connection,
             open_screenshot_window,
             screen_capture::take_screenshot,

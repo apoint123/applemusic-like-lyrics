@@ -91,7 +91,6 @@ import {
 	verticalCoverLayoutAtom,
 } from "../../states/configAtoms";
 import {
-	correctedMusicPlayingPositionAtom,
 	cycleRepeatModeActionAtom,
 	isShuffleActiveAtom,
 	RepeatMode,
@@ -109,6 +108,7 @@ import {
 	musicLyricLinesAtom,
 	musicNameAtom,
 	musicPlayingAtom,
+	musicPlayingPositionAtom,
 	musicQualityTagAtom,
 	musicVolumeAtom,
 } from "../../states/dataAtoms";
@@ -225,11 +225,17 @@ const PrebuiltMediaButtons: FC<{
 };
 
 const TimeLabel: FC<{ isRemaining?: boolean }> = ({ isRemaining }) => {
-	const currentPosition = useAtomValue(correctedMusicPlayingPositionAtom);
+	const currentPosition = useAtomValue(musicPlayingPositionAtom);
 	const duration = useAtomValue(musicDurationAtom);
-	const time = useMemo(() => toDuration(isRemaining
-		? (currentPosition - duration) / 1000
-		: currentPosition / 1000), [currentPosition, duration, isRemaining]);
+	const time = useMemo(
+		() =>
+			toDuration(
+				isRemaining
+					? (currentPosition - duration) / 1000
+					: currentPosition / 1000,
+			),
+		[currentPosition, duration, isRemaining],
+	);
 	return <>{time}</>;
 };
 
@@ -242,7 +248,7 @@ const TotalDurationLabel: FC = () => {
 const PrebuiltProgressBar: FC<{ disabled?: boolean }> = React.memo(
 	({ disabled }) => {
 		const musicDuration = useAtomValue(musicDurationAtom);
-		const musicPosition = useAtomValue(correctedMusicPlayingPositionAtom);
+		const musicPosition = useAtomValue(musicPlayingPositionAtom);
 		const musicQualityTag = useAtomValue(musicQualityTagAtom);
 		const onClickAudioQualityTag = useAtomValue(
 			onClickAudioQualityTagAtom,
@@ -314,7 +320,7 @@ const PrebuiltCoreLyricPlayer: FC<{
 	const musicIsPlaying = useAtomValue(musicPlayingAtom);
 	const lyricLines = useAtomValue(musicLyricLinesAtom);
 	const isLyricPageOpened = useAtomValue(isLyricPageOpenedAtom);
-	const musicPlayingPosition = useAtomValue(correctedMusicPlayingPositionAtom);
+	const musicPlayingPosition = useAtomValue(musicPlayingPositionAtom);
 
 	const lyricFontFamily = useAtomValue(lyricFontFamilyAtom);
 	const lyricFontWeight = useAtomValue(lyricFontWeightAtom);
@@ -368,9 +374,9 @@ const PrebuiltCoreLyricPlayer: FC<{
 			...line,
 			words: Array.isArray(line.words)
 				? line.words.map((word: any) => ({
-					...word,
-					obscene: typeof word.obscene === "boolean" ? word.obscene : false,
-				}))
+						...word,
+						obscene: typeof word.obscene === "boolean" ? word.obscene : false,
+					}))
 				: [],
 		}));
 	}, [

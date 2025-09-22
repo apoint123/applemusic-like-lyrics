@@ -11,9 +11,21 @@ use tokio::task::JoinHandle;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::{WebSocketStream, accept_async};
 use tracing::*;
+use ws_protocol::{v1, v2};
 
-type Connections =
-    Arc<TokioRwLock<HashMap<SocketAddr, SplitSink<WebSocketStream<TcpStream>, Message>>>>;
+type Connections = Arc<TokioRwLock<HashMap<SocketAddr, ConnectionInfo>>>;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum ProtocolType {
+    Unknown,
+    BinaryV1,
+    HybridV2,
+}
+
+struct ConnectionInfo {
+    sink: SplitSink<WebSocketStream<TcpStream>, Message>,
+    protocol: ProtocolType,
+}
 
 pub struct AMLLWebSocketServer {
     app: AppHandle,
@@ -34,11 +46,17 @@ impl AMLLWebSocketServer {
         if let Some(task) = self.server_handle.take() {
             task.abort();
         }
-        self.connections.write().await.clear();
+        let mut conns = self.connections.write().await;
+        for (addr, conn_sink) in conns.iter_mut() {
+            if let Err(e) = conn_sink.sink.close().await {
+                warn!("断开和 {} 的 WebSocket 连接失败:{:?}", addr, e);
+            }
+        }
+        conns.clear();
         info!("WebSocket 服务器已关闭");
     }
 
-    pub fn reopen(&mut self, addr: String, channel: Channel<ws_protocol::Body>) {
+    pub fn reopen(&mut self, addr: String, channel: Channel<v2::Payload>) {
         if let Some(task) = self.server_handle.take() {
             task.abort();
         }
@@ -78,22 +96,38 @@ impl AMLLWebSocketServer {
         self.connections.read().await.keys().copied().collect()
     }
 
-    pub async fn boardcast_message(&mut self, data: ws_protocol::Body) {
+    pub async fn broadcast_payload(&mut self, payload: v2::Payload) {
         let mut conns = self.connections.write().await;
-        let msg = match ws_protocol::to_body(&data) {
-            Ok(binary_data) => Message::Binary(binary_data.into()),
-            Err(e) => {
-                error!("读取消息失败: {:?}", e);
-                return;
-            }
+
+        let v2_msg = serde_json::to_string(&payload)
+            .ok()
+            .map(|s| Message::Text(s.into()));
+
+        let v1_msg = if let Ok(v1_body) = v1::Body::try_from(payload.clone()) {
+            v1::to_body(&v1_body)
+                .ok()
+                .map(|d| Message::Binary(d.into()))
+        } else {
+            None
         };
 
         let mut disconnected_addrs = Vec::new();
 
-        for (addr, conn) in conns.iter_mut() {
-            if let Err(err) = conn.send(msg.clone()).await {
-                warn!("WebSocket 客户端 {addr} 发送失败: {err:?}");
-                disconnected_addrs.push(*addr);
+        for (addr, conn_info) in conns.iter_mut() {
+            let msg_to_send = match conn_info.protocol {
+                ProtocolType::BinaryV1 => v1_msg.as_ref(),
+                ProtocolType::HybridV2 => v2_msg.as_ref(),
+                _ => None,
+            };
+
+            if let Some(msg) = msg_to_send {
+                if msg.is_empty() {
+                    continue;
+                }
+                if let Err(err) = conn_info.sink.send(msg.clone()).await {
+                    warn!("WebSocket 客户端 {addr} 发送失败: {err:?}");
+                    disconnected_addrs.push(*addr);
+                }
             }
         }
 
@@ -106,38 +140,71 @@ impl AMLLWebSocketServer {
         stream: TcpStream,
         app: AppHandle,
         conns: Connections,
-        channel: Channel<ws_protocol::Body>,
+        channel: Channel<v2::Payload>,
     ) -> anyhow::Result<()> {
         let addr = stream.peer_addr()?;
         let addr_str = addr.to_string();
         info!("已接受套接字连接: {addr}");
 
         let wss = accept_async(stream).await?;
-
         info!("已连接 WebSocket 客户端: {addr}");
         app.emit("on-ws-protocol-client-connected", &addr_str)?;
 
-        let (write, mut read) = wss.split();
+        let (write_sink, mut read_stream) = wss.split();
 
-        conns.write().await.insert(addr, write);
+        let mut temp_sink = Some(write_sink);
 
-        while let Some(Ok(data)) = read.next().await {
-            if data.is_binary() {
-                // trace!("WebSocket 客户端 {addr} 发送原始数据: {data:?}");
-
-                let data = data.into_data();
-                if let Ok(body) = ws_protocol::parse_body(&data) {
-                    // match &body {
-                    //     Body::OnAudioData { .. } => {}
-                    //     _ => {
-                    //         trace!("WebSocket 客户端 {addr} 解析到原始数据: {body:?}");
-                    //     }
-                    // }
-                    // app.emit("on-ws-protocol-client-body", body)?;
-                    if let Err(e) = channel.send(body) {
-                        error!("向前端发送消息失败，可能前端已关闭。错误: {e:?}");
-                        break;
+        if let Some(Ok(first_message)) = read_stream.next().await {
+            let protocol_type = match first_message {
+                Message::Text(ref text) => {
+                    if let Ok(v2_message) = serde_json::from_str::<v2::MessageV2>(text) {
+                        if v2_message.payload == v2::Payload::Initialize {
+                            info!("已识别为 HybridV2 协议");
+                            ProtocolType::HybridV2
+                        } else {
+                            warn!("收到了一个非 Initialize 的 V2 消息，断开。");
+                            return Ok(());
+                        }
+                    } else {
+                        warn!("发送了无法识别的文本消息，断开。");
+                        return Ok(());
                     }
+                }
+                Message::Binary(_) => {
+                    info!("已识别为 BinaryV1 协议");
+                    if let Err(e) = Self::process_v1_message(first_message, &channel).await {
+                        error!("处理 V1 协议的消息时失败: {e:?}");
+                        return Ok(());
+                    }
+                    ProtocolType::BinaryV1
+                }
+                _ => ProtocolType::Unknown,
+            };
+
+            if protocol_type != ProtocolType::Unknown
+                && let Some(sink) = temp_sink.take()
+            {
+                conns.write().await.insert(
+                    addr,
+                    ConnectionInfo {
+                        sink,
+                        protocol: protocol_type,
+                    },
+                );
+            }
+        }
+
+        while let Some(Ok(message)) = read_stream.next().await {
+            let conns_read = conns.read().await;
+            if let Some(conn_info) = conns_read.get(&addr) {
+                let process_result = match conn_info.protocol {
+                    ProtocolType::BinaryV1 => Self::process_v1_message(message, &channel).await,
+                    ProtocolType::HybridV2 => Self::process_v2_message(message, &channel).await,
+                    _ => Ok(()),
+                };
+                if let Err(e) = process_result {
+                    error!("处理消息失败: {e:?}");
+                    break;
                 }
             }
         }
@@ -145,6 +212,30 @@ impl AMLLWebSocketServer {
         info!("已断开 WebSocket 客户端: {addr}");
         app.emit("on-ws-protocol-client-disconnected", &addr_str)?;
         conns.write().await.remove(&addr);
+        Ok(())
+    }
+
+    async fn process_v1_message(
+        message: Message,
+        channel: &Channel<v2::Payload>,
+    ) -> anyhow::Result<()> {
+        if let Message::Binary(data) = message {
+            let v1_body = v1::parse_body(&data)?;
+            channel.send(v1_body.into())?;
+        }
+        Ok(())
+    }
+
+    async fn process_v2_message(
+        message: Message,
+        channel: &Channel<v2::Payload>,
+    ) -> anyhow::Result<()> {
+        let payload = match message {
+            Message::Text(text) => serde_json::from_str::<v2::MessageV2>(&text)?.payload,
+            Message::Binary(data) => v2::parse_binary_v2(&data)?.into(),
+            _ => return Ok(()),
+        };
+        channel.send(payload)?;
         Ok(())
     }
 }
