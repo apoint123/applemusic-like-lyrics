@@ -3,7 +3,7 @@ packages:
 
 catalog:
   "typescript": "^5.9.2"
-  "vite": "^7.1.7"
+  "vite": "^6.3.6"
   "react": "^19.1.1"
   "react-dom": "^19.1.1"
   "@types/react": "^19.1.13"
