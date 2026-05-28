@@ -30,7 +30,7 @@ tokio = { version = "^1", features = [
 tracing = "0.1"
 easer = "0.3.0"
 dispatch = "0.2.0"
-tauri = "2.6.2"
+tauri = "2.10.3"
 rodio = { version = "0.21", features = [] }
 parking_lot = "0.12"
 
